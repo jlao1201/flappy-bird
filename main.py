@@ -1,0 +1,215 @@
+""" This game application is a Flappy Bird clone; play as a bird flying
+through pipes and try to get a high score!
+"""
+
+import pygame
+import sys
+import random
+
+
+def draw_floor():
+    """ Import the floor image onto the screen. """
+    screen.blit(floor_surface, (floor_x_pos, 900))
+    screen.blit(floor_surface, (floor_x_pos + 576, 900))
+
+
+def create_pipe():
+    """ Generate pairs of pipes of random heights. """
+    random_pipe_pos = random.choice(pipe_height)
+    bottom_pipe = pipe_surface.get_rect(midtop=(700, random_pipe_pos))
+    top_pipe = pipe_surface.get_rect(midbottom=(700, random_pipe_pos - 300))
+    return bottom_pipe, top_pipe
+
+
+def move_pipes(pipes):
+    """ Move the pipes towards the left of the screen; delete old pipes. """
+    for pipe in pipes:
+        pipe.centerx -= 5
+    visible_pipes = [pipe for pipe in pipes if pipe.right > -50]
+    return visible_pipes
+
+
+def draw_pipes(pipes):
+    """ Import the pipe images onto the screen; one on top one on the bottom. """
+    for pipe in pipes:
+        if pipe.bottom >= 1024:
+            screen.blit(pipe_surface, pipe)
+        else:
+            flipped_pipe_surface = pygame.transform.flip(pipe_surface, False, True)
+            screen.blit(flipped_pipe_surface, pipe)
+
+
+def check_collision(pipes):
+    """ Check if the player has collided with a pipe or the floor/roof. """
+    global can_score
+    for pipe in pipes:
+        if player_rect.colliderect(pipe):
+            death_sound.play()
+            can_score = True
+            return False
+    if player_rect.top <= -100 or player_rect.bottom >= 900:
+        death_sound.play()
+        can_score = True
+        return False
+    return True
+
+
+def rotate_player(player):
+    """ Animate the forward/backward tilt of the player sprite. """
+    new_player = pygame.transform.rotozoom(player, -player_movement * 3, 1)
+    return new_player
+
+
+def player_animation():
+    """ Animate the flapping motion of the player sprite. """
+    new_player = player_frames[player_index]
+    new_player_rect = new_player.get_rect(center=(100, player_rect.centery))
+    return new_player, new_player_rect
+
+
+def display_score(game_state):
+    """ Import the score on the screen; also show high score if game over. """
+    if game_state == 'game_on':
+        score_surface = game_font.render(str(int(score)), True, (255, 255, 255))
+        score_rect = score_surface.get_rect(center=(288, 100))
+        screen.blit(score_surface, score_rect)
+    if game_state == 'game_over':
+        score_surface = game_font.render(f'Score: {int(score)}', True, (255, 255, 255))
+        score_rect = score_surface.get_rect(center=(288, 100))
+        screen.blit(score_surface, score_rect)
+
+        high_score_surface = game_font.render(f'High Score: {int(high_score)}', True, (255, 255, 255))
+        high_score_rect = high_score_surface.get_rect(center=(288, 850))
+        screen.blit(high_score_surface, high_score_rect)
+
+
+def update_score(current, high):
+    """ Check and update the high score. """
+    if current > high:
+        high = current
+    return high
+
+
+def pipe_score_check():
+    """ Check if the player has "scored" by successfully going through a set of pipes. """
+    global score, can_score
+    if pipe_list:
+        for pipe in pipe_list:
+            if 80 < pipe.centerx < 90 and can_score:
+                score += 1
+                score_sound.play()
+                can_score = False
+            if pipe.centerx < 0:
+                can_score = True
+
+
+# Initialize game screen
+pygame.init()
+screen = pygame.display.set_mode((576, 1024))
+clock = pygame.time.Clock()
+game_font = pygame.font.Font('resources/04B_19.ttf', 40)
+
+# Game Variables
+gravity = 0.25
+player_movement = 0
+game_active = True
+score = 0
+high_score = 0
+can_score = True
+
+# Surface panel for background
+bg_surface = pygame.image.load('resources/assets/background-day.png').convert()
+bg_surface = pygame.transform.scale2x(bg_surface)  # scale image to fit display
+
+# Surface panel for floor
+floor_surface = pygame.image.load('resources/assets/base.png').convert()
+floor_surface = pygame.transform.scale2x(floor_surface)  # scale image to fit display
+floor_x_pos = 0
+
+# Surface panels for player sprite
+player_down_flap = pygame.transform.scale2x(pygame.image.load('resources/assets/bluebird-downflap.png').convert_alpha())
+player_mid_flap = pygame.transform.scale2x(pygame.image.load('resources/assets/bluebird-midflap.png').convert_alpha())
+player_up_flap = pygame.transform.scale2x(pygame.image.load('resources/assets/bluebird-upflap.png').convert_alpha())
+player_frames = [player_down_flap, player_mid_flap, player_up_flap]
+player_index = 0
+player_surface = player_frames[player_index]
+player_rect = player_surface.get_rect(center=(100, 512))
+PLAYERFLAP = pygame.USEREVENT + 1
+pygame.time.set_timer(PLAYERFLAP, 200)
+
+# Surface panels for pipes
+pipe_surface = pygame.image.load('resources/assets/pipe-green.png')
+pipe_surface = pygame.transform.scale2x(pipe_surface)
+pipe_list = []
+SPAWNPIPE = pygame.USEREVENT
+pygame.time.set_timer(SPAWNPIPE, 1200)
+pipe_height = [400, 600, 800]
+
+# Surface panel for game over screen
+game_over_surface = pygame.image.load('resources/assets/message.png').convert_alpha()
+game_over_surface = pygame.transform.scale2x(game_over_surface)
+game_over_rect = game_over_surface.get_rect(center=(288, 512))
+
+# Sound files
+flap_sound = pygame.mixer.Sound('resources/sound/sfx_wing.wav')
+death_sound = pygame.mixer.Sound('resources/sound/sfx_hit.wav')
+score_sound = pygame.mixer.Sound('resources/sound/sfx_point.wav')
+
+# Game loop
+while True:
+    # Event loop
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE and game_active:
+                player_movement = 0
+                player_movement -= 9
+                flap_sound.play()
+            if event.key == pygame.K_SPACE and not game_active:
+                game_active = True
+                pipe_list.clear()
+                player_rect.center = (100, 512)
+                player_movement = 0
+                score = 0
+        if event.type == SPAWNPIPE:
+            pipe_list.extend(create_pipe())
+        if event.type == PLAYERFLAP:
+            if player_index < 2:
+                player_index += 1
+            else:
+                player_index = 0
+            player_surface, player_rect = player_animation()
+
+    screen.blit(bg_surface, (0, 0))  # Import the background on to the screen
+
+    if game_active:
+        # Handle player movement
+        player_movement += gravity
+        rotated_player = rotate_player(player_surface)
+        player_rect.centery += player_movement
+        screen.blit(rotated_player, player_rect)
+        game_active = check_collision(pipe_list)
+
+        # Handle pipes
+        pipe_list = move_pipes(pipe_list)
+        draw_pipes(pipe_list)
+
+        # Handle score
+        pipe_score_check()
+        display_score('game_on')
+    else:
+        # Handle game over screen
+        screen.blit(game_over_surface, game_over_rect)
+        high_score = update_score(score, high_score)
+        display_score('game_over')
+
+    # Handle floor surface
+    floor_x_pos -= 1
+    draw_floor()
+    if floor_x_pos <= -576:
+        floor_x_pos = 0
+
+    pygame.display.update()
+    clock.tick(120)  # limit frames per second to 120
