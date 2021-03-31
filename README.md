@@ -3,9 +3,9 @@
 Flappy Bird game made with Pygame.
 
 ## Description of files:
-  resources/assets
+  - resources/assets
     - Image files for player sprite/background
-  resources/sound
+  - resources/sound
     - Audio files for game sounds
-  main.py
+  - main.py
     - Game implementation
